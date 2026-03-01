@@ -42,7 +42,7 @@ rewrites:
     min: 20          # 最小値
     max: 35          # 最大値
     max_delta: 1     # 1回の最大変化量
-    min_hold: 300    # 変動間隔（秒）
+    min_hold: 60     # 変動間隔（秒）
 
   # Outlet 温度センサーの書き換え例
   - metric: entSensorValue

@@ -152,13 +152,13 @@ func (r *Rewriter) applyGauge(m *dto.Metric, cfg *config.RewriteConfig, key stri
 			currentValue: current,
 			lastUpdate:   now,
 		}
-		setValue(m, current)
+		setValue(m, math.Round(current))
 		return
 	}
 
 	elapsed := now.Sub(state.lastUpdate).Seconds()
 	if elapsed < cfg.MinHold {
-		setValue(m, state.currentValue)
+		setValue(m, math.Round(state.currentValue))
 		return
 	}
 
@@ -180,7 +180,7 @@ func (r *Rewriter) applyGauge(m *dto.Metric, cfg *config.RewriteConfig, key stri
 
 	state.currentValue = newVal
 	state.lastUpdate = now
-	setValue(m, newVal)
+	setValue(m, math.Round(newVal))
 }
 
 // getValue は dto.Metric から現在値を取得します。
