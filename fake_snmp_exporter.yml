@@ -1,0 +1,65 @@
+# fake_snmp_exporter 設定ファイル
+
+upstream:
+  # manage: true の場合、snmp_exporter を子プロセスとして起動します。
+  # manage: false の場合、既存の snmp_exporter に接続します。
+  manage: true
+
+  # manage: true の場合: snmp_exporter バイナリのパス（省略時は PATH から探索）
+  # binary: /usr/local/bin/snmp_exporter
+  binary: ~/git/snmp_exporter/snmp_exporter
+
+  # upstream snmp_exporter のホスト名（manage: false 時に使用）
+  host: localhost
+
+  # upstream snmp_exporter のポート番号
+  # manage: true  の場合: このポートで snmp_exporter を起動する
+  # manage: false の場合: このポートに接続する
+  port: 9117
+
+rewrites:
+  # 受信トラフィック（counter）の書き換え例
+  # ifHCInOctets を毎秒1000バイト前後（±30%）増加させます
+  - metric: ifHCInOctets
+    type: counter
+    rate: 1000      # 1秒あたりの増分
+    jitter: 0.3     # ランダム性（0.0〜1.0）
+
+  # 特定ポートの受信トラフィックのみを書き換える例（ラベル絞り込み）
+  # - metric: ifHCInOctets
+  #   labels:
+  #     ifName: Gi1/0/1
+  #   type: counter
+  #   rate: 5000
+  #   jitter: 0.2
+
+  # 温度センサー（gauge）の書き換え例
+  # Inlet 温度を 20〜35 度の範囲で、1時間ごとに ±1 度変動させます
+  - metric: entSensorValue
+    labels:
+      entPhysicalName: "Switch 1 - Inlet Temp Sensor"
+    type: gauge
+    min: 20          # 最小値
+    max: 35          # 最大値
+    max_delta: 1     # 1回の最大変化量
+    min_hold: 300    # 変動間隔（秒）
+
+  # Outlet 温度センサーの書き換え例
+  - metric: entSensorValue
+    labels:
+      entPhysicalName: "Switch 1 - Outlet Temp Sensor"
+    type: gauge
+    min: 25
+    max: 40
+    max_delta: 1
+    min_hold: 3600
+
+  # HotSpot 温度センサーの書き換え例
+  - metric: entSensorValue
+    labels:
+      entPhysicalName: "Switch 1 - HotSpot Temp Sensor"
+    type: gauge
+    min: 40
+    max: 60
+    max_delta: 2
+    min_hold: 1800
