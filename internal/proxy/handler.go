@@ -88,7 +88,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// /snmp エンドポイントかつ Prometheus テキスト形式のレスポンスを書き換える
 	contentType := resp.Header.Get("Content-Type")
 	if isSnmpPath(r.URL.Path) && isPrometheusText(contentType) && resp.StatusCode == http.StatusOK {
-		rewritten, err := h.rw.Rewrite(body, contentType)
+		target := r.URL.Query().Get("target")
+		rewritten, err := h.rw.Rewrite(body, contentType, target)
 		if err != nil {
 			log.Printf("メトリクス書き換えエラー（元のレスポンスをそのまま返します）: %v", err)
 		} else {

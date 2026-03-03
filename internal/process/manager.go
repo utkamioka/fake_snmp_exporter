@@ -16,6 +16,14 @@ import (
 // Manager は起動した upstream snmp_exporter プロセスの情報を保持します。
 type Manager struct {
 	url string
+	cmd *exec.Cmd
+}
+
+// Stop は子プロセスを強制終了します。
+func (m *Manager) Stop() {
+	if m.cmd != nil && m.cmd.Process != nil {
+		m.cmd.Process.Kill() //nolint:errcheck
+	}
 }
 
 // Start は upstream snmp_exporter を子プロセスとして起動します。
@@ -57,20 +65,33 @@ func Start(ctx context.Context, cfg config.UpstreamConfig, parentArgs []string) 
 
 	log.Printf("upstream snmp_exporter を起動しました (PID: %d, port: %d)", cmd.Process.Pid, port)
 
-	// プロセスの終了を監視する
+	// プロセスの終了を監視するチャネル（Wait は必ず1箇所からのみ呼ぶ）
+	done := make(chan error, 1)
 	go func() {
-		if err := cmd.Wait(); err != nil {
-			if ctx.Err() == nil {
-				log.Printf("upstream snmp_exporter が予期せず終了しました: %v", err)
-			}
-		}
+		done <- cmd.Wait()
 	}()
 
-	// snmp_exporter の起動完了を待つ
-	time.Sleep(500 * time.Millisecond)
+	// 起動完了を待ちつつ、早期終了を検知する
+	select {
+	case err := <-done:
+		if err != nil {
+			return nil, fmt.Errorf("upstream snmp_exporter が起動直後に終了しました: %w", err)
+		}
+		return nil, fmt.Errorf("upstream snmp_exporter が起動直後に終了しました（終了コード 0）")
+	case <-time.After(cfg.StartupTimeout.Duration):
+		// 起動成功とみなし、以降の終了をバックグラウンドで監視する
+		go func() {
+			if err := <-done; err != nil {
+				if ctx.Err() == nil {
+					log.Printf("upstream snmp_exporter が予期せず終了しました: %v", err)
+				}
+			}
+		}()
+	}
 
 	return &Manager{
 		url: fmt.Sprintf("http://localhost:%d", port),
+		cmd: cmd,
 	}, nil
 }
 

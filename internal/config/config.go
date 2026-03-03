@@ -3,9 +3,29 @@ package config
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
+
+// Duration は time.Duration を YAML 文字列形式（例: "500ms", "2s"）でデシリアライズできる型です。
+type Duration struct {
+	time.Duration
+}
+
+// UnmarshalYAML は "500ms" や "2s" のような文字列を time.Duration にパースします。
+func (d *Duration) UnmarshalYAML(value *yaml.Node) error {
+	var s string
+	if err := value.Decode(&s); err != nil {
+		return err
+	}
+	dur, err := time.ParseDuration(s)
+	if err != nil {
+		return fmt.Errorf("時間のパースエラー %q: %w", s, err)
+	}
+	d.Duration = dur
+	return nil
+}
 
 // Config は fake_snmp_exporter.yml の全設定を保持します。
 type Config struct {
@@ -23,6 +43,8 @@ type UpstreamConfig struct {
 	Host string `yaml:"host"`
 	// Port は upstream snmp_exporter のポート番号です。
 	Port int `yaml:"port"`
+	// StartupTimeout は manage: true 時に snmp_exporter の起動完了を待つ時間です（デフォルト: "500ms"）。
+	StartupTimeout Duration `yaml:"startup_timeout"`
 }
 
 // URL は upstream snmp_exporter の URL を返します。
@@ -42,6 +64,9 @@ func (u *UpstreamConfig) URL() string {
 type RewriteConfig struct {
 	// Metric は書き換え対象のメトリクス名です。
 	Metric string `yaml:"metric"`
+	// Target は書き換えを適用する SNMP 機器の target 文字列です（省略時は全機器に適用）。
+	// curl の target= パラメータと同じ形式（例: "10.118.65.181:1161"）。
+	Target string `yaml:"target"`
 	// Labels は絞り込みに使うラベルの条件マップです（すべてが一致した場合のみ書き換えます）。
 	Labels map[string]string `yaml:"labels"`
 	// Type は書き換え挙動の種別です（"counter" または "gauge"）。
@@ -80,6 +105,9 @@ func Load(path string) (*Config, error) {
 
 	if cfg.Upstream.Port == 0 {
 		cfg.Upstream.Port = 9117
+	}
+	if cfg.Upstream.StartupTimeout.Duration == 0 {
+		cfg.Upstream.StartupTimeout.Duration = 500 * time.Millisecond
 	}
 
 	return &cfg, nil

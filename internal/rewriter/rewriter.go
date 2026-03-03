@@ -60,7 +60,7 @@ func New(configs []config.RewriteConfig) *Rewriter {
 //
 //	[]byte - 書き換え後のレスポンスボディ
 //	error  - パースまたはエンコード時のエラー
-func (r *Rewriter) Rewrite(body []byte, contentType string) ([]byte, error) {
+func (r *Rewriter) Rewrite(body []byte, contentType string, target string) ([]byte, error) {
 	header := http.Header{"Content-Type": {contentType}}
 	format := expfmt.ResponseFormat(header)
 	if format == expfmt.FmtUnknown {
@@ -81,10 +81,13 @@ func (r *Rewriter) Rewrite(body []byte, contentType string) ([]byte, error) {
 				if mf.GetName() != cfg.Metric {
 					continue
 				}
+				if cfg.Target != "" && cfg.Target != target {
+					continue
+				}
 				if !labelsMatch(m.Label, cfg.Labels) {
 					continue
 				}
-				key := makeKey(mf.GetName(), m.Label)
+				key := makeKey(target, mf.GetName(), m.Label)
 				r.applyRewrite(m, cfg, key, now)
 			}
 		}
@@ -231,13 +234,13 @@ func labelsMatch(metricLabels []*dto.LabelPair, configLabels map[string]string) 
 }
 
 // makeKey はメトリクス名とラベルセットからユニークなキー文字列を生成します。
-func makeKey(metricName string, labels []*dto.LabelPair) string {
+func makeKey(target, metricName string, labels []*dto.LabelPair) string {
 	pairs := make([]string, len(labels))
 	for i, lp := range labels {
 		pairs[i] = lp.GetName() + "=" + lp.GetValue()
 	}
 	sort.Strings(pairs)
-	return metricName + "{" + strings.Join(pairs, ",") + "}"
+	return target + "/" + metricName + "{" + strings.Join(pairs, ",") + "}"
 }
 
 // decodeAll は io.Reader から全 MetricFamily をデコードして返します。

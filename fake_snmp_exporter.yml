@@ -17,16 +17,30 @@ upstream:
   # manage: false の場合: このポートに接続する
   port: 9117
 
+  # manage: true の場合: snmp_exporter の起動完了を待つ時間（デフォルト: "500ms"）
+  # 起動完了前にプロセスが終了した場合、fake_snmp_exporter も起動失敗します。
+  # startup_timeout: "500ms"
+
 rewrites:
   # 受信トラフィック（counter）の書き換え例
   # ifHCInOctets を毎秒1000バイト前後（±30%）増加させます
   - metric: ifHCInOctets
+    target: "localhost:1161"
     type: counter
     rate: 1000      # 1秒あたりの増分
     jitter: 0.3     # ランダム性（0.0〜1.0）
 
-  # 特定ポートの受信トラフィックのみを書き換える例（ラベル絞り込み）
+  - metric: ifHCInOctets
+    target: "localhost:1162"
+    type: counter
+    rate: 5000      # 1秒あたりの増分
+    jitter: 0.3     # ランダム性（0.0〜1.0）
+
+  # 特定機器・特定ポートのみを書き換える例（target＋ラベル絞り込み）
+  # target は curl の target= パラメータと同じ形式で指定します。
+  # 省略時は全機器に適用されます。
   # - metric: ifHCInOctets
+  #   target: "localhost:1161"
   #   labels:
   #     ifName: Gi1/0/1
   #   type: counter
@@ -42,7 +56,7 @@ rewrites:
     min: 20          # 最小値
     max: 35          # 最大値
     max_delta: 1     # 1回の最大変化量
-    min_hold: 60     # 変動間隔（秒）
+    min_hold: 3      # 変動間隔（秒）
 
   # Outlet 温度センサーの書き換え例
   - metric: entSensorValue

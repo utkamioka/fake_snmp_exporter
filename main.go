@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 
 	"kamioka.example.com/fake_snmp_exporter/internal/config"
@@ -16,6 +17,27 @@ import (
 	"kamioka.example.com/fake_snmp_exporter/internal/proxy"
 	"kamioka.example.com/fake_snmp_exporter/internal/rewriter"
 )
+
+// version はビルド時に -ldflags="-X main.version=x.x.x" で埋め込まれます。
+// 未指定の場合は VCS 情報（git コミットハッシュ）にフォールバックします。
+var version = ""
+
+// getVersion はバージョン文字列を返します。
+func getVersion() string {
+	if version != "" {
+		return version
+	}
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "unknown"
+	}
+	for _, s := range info.Settings {
+		if s.Key == "vcs.revision" && len(s.Value) >= 7 {
+			return "dev-" + s.Value[:7]
+		}
+	}
+	return "dev"
+}
 
 // stringSliceFlag は複数回指定可能な文字列フラグです。
 type stringSliceFlag []string
@@ -136,7 +158,7 @@ func main() {
 	_ = configFiles
 
 	if showVersion {
-		fmt.Println("fake_snmp_exporter, version dev (https://github.com/prometheus/snmp_exporter compatible)")
+		fmt.Printf("fake_snmp_exporter, version %s\n", getVersion())
 		return
 	}
 
@@ -163,8 +185,10 @@ func main() {
 	}()
 
 	var upstreamURL string
+	var mgr *process.Manager
 	if cfg.Upstream.Manage {
-		mgr, err := process.Start(ctx, cfg.Upstream, os.Args[1:])
+		var err error
+		mgr, err = process.Start(ctx, cfg.Upstream, os.Args[1:])
 		if err != nil {
 			log.Fatalf("upstream snmp_exporter の起動に失敗しました: %v", err)
 		}
@@ -193,6 +217,9 @@ func main() {
 
 	log.Printf("fake_snmp_exporter を %s で起動しました。upstream: %s", listenAddr, upstreamURL)
 	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+		if mgr != nil {
+			mgr.Stop()
+		}
 		log.Fatalf("HTTP サーバーエラー: %v", err)
 	}
 }
